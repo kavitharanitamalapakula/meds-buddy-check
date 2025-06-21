@@ -1,16 +1,21 @@
-
 import { useState } from "react";
 import Onboarding from "@/components/Onboarding";
 import PatientDashboard from "@/components/PatientDashboard";
 import CaretakerDashboard from "@/components/CaretakerDashboard";
+
 import { Button } from "@/components/ui/button";
 import { Users, User } from "lucide-react";
+import Login from "@/components/Login";
+import Signup from "@/components/Signup";
 
 type UserType = "patient" | "caretaker" | null;
+type AuthMode = "login" | "signup";
 
 const Index = () => {
   const [userType, setUserType] = useState<UserType>(null);
   const [isOnboarded, setIsOnboarded] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   const handleOnboardingComplete = (type: UserType) => {
     setUserType(type);
@@ -20,10 +25,69 @@ const Index = () => {
   const switchUserType = () => {
     const newType = userType === "patient" ? "caretaker" : "patient";
     setUserType(newType);
+    setIsLoggedIn(false);
+    setAuthMode("login");
+  };
+
+  const handleLogin = (type: UserType) => {
+    setUserType(type);
+    setIsLoggedIn(true);
+  };
+
+  const handleSignup = (type: UserType) => {
+    setUserType(type);
+    setIsLoggedIn(false);
+    setAuthMode("login");
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUserType(null);
+    setIsOnboarded(false);
+    setAuthMode("login");
   };
 
   if (!isOnboarded) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-gradient-to-br from-blue-50 to-green-50 p-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow p-6">
+          {authMode === "login" ? (
+            <Login userType={userType || "patient"} onClose={() => { }} onLogin={handleLogin} />
+          ) : (
+            <Signup userType={userType || "patient"} onClose={() => { }} onSignup={handleSignup} />
+          )}
+          {userType === "caretaker" && (
+            <div className="p-4 text-right">
+              {authMode === "login" ? (
+                <p>
+                  Don't have an account?{" "}
+                  <button
+                    className="text-blue-600 hover:underline"
+                    onClick={() => setAuthMode("signup")}
+                  >
+                    Sign up
+                  </button>
+                </p>
+              ) : (
+                <p>
+                  Already have an account?{" "}
+                  <button
+                    className="text-blue-600 hover:underline"
+                    onClick={() => setAuthMode("login")}
+                  >
+                    Sign in
+                  </button>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -41,15 +105,20 @@ const Index = () => {
               </p>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
-            onClick={switchUserType}
-            className="flex items-center gap-2 hover:bg-accent transition-colors"
-          >
-            {userType === "patient" ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
-            Switch to {userType === "patient" ? "Caretaker" : "Patient"}
-          </Button>
+
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={switchUserType}
+              className="flex items-center gap-2 hover:bg-accent transition-colors"
+            >
+              {userType === "patient" ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
+              Switch to {userType === "patient" ? "Caretaker" : "Patient"}
+            </Button>
+            <Button variant="outline" onClick={handleLogout}>
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
