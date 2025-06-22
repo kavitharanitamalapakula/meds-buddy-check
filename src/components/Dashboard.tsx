@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient";
 import React, { useEffect, useState } from "react";
+import CaretakerDashboard from "./CaretakerDashboard";
 
 interface Patient {
     id: string;
@@ -16,6 +17,7 @@ const Dashboard: React.FC = () => {
         username: "",
         password: ""
     });
+    const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
     useEffect(() => {
         fetchPatients();
@@ -63,8 +65,6 @@ const Dashboard: React.FC = () => {
             console.error("Patient ID missing after signup");
             return;
         }
-
-        // Get caretaker's ID
         const {
             data: { user: caretaker },
             error: caretakerError
@@ -74,8 +74,6 @@ const Dashboard: React.FC = () => {
             console.error("Caretaker fetch error:", caretakerError?.message);
             return;
         }
-
-        // Insert into UsersData
         const { error: insertError } = await supabase.from("UsersData").insert([
             {
                 id: patientId,
@@ -96,6 +94,19 @@ const Dashboard: React.FC = () => {
         setShowModal(false);
         fetchPatients();
     };
+
+    const handlePatientClick = (patientId: string) => {
+        const patient = patients.find(p => p.id === patientId) || null;
+        setSelectedPatient(patient);
+    };
+
+    const handleBackToDashboard = () => {
+        setSelectedPatient(null);
+    };
+
+    if (selectedPatient) {
+        return <CaretakerDashboard patientId={selectedPatient.id} patientName={selectedPatient.username} onBack={handleBackToDashboard} />;
+    }
 
     return (
         <div className="min-h-screen flex bg-gray-100">
@@ -126,7 +137,7 @@ const Dashboard: React.FC = () => {
                                 </tr>
                             ) : (
                                 patients.map((patient) => (
-                                    <tr key={patient.id} className="hover:bg-gray-50 transition">
+                                    <tr key={patient.id} className="hover:bg-gray-50 transition" onClick={() => handlePatientClick(patient.id)}>
                                         <td className="py-3 px-6">{patient.email}</td>
                                         <td className="py-3 px-6">{patient.username}</td>
                                     </tr>
