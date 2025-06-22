@@ -1,21 +1,46 @@
 import { useState } from "react";
 import Onboarding from "@/components/Onboarding";
 import PatientDashboard from "@/components/PatientDashboard";
-import CaretakerDashboard from "@/components/CaretakerDashboard";
 
 import { Button } from "@/components/ui/button";
 import { Users, User } from "lucide-react";
 import Login from "@/components/Login";
 import Signup from "@/components/Signup";
+import Dashboard from "@/components/Dashboard";
 
 type UserType = "patient" | "caretaker" | null;
 type AuthMode = "login" | "signup";
+
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 const Index = () => {
   const [userType, setUserType] = useState<UserType>(null);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+
+  useEffect(() => {
+    const fetchUserType = async () => {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      // if (error) {
+      //   console.error("Error fetching user:", error.message);
+      //   return;
+      // }
+
+      if (user && user.user_metadata && user.user_metadata.user_type) {
+        setUserType(user.user_metadata.user_type);
+        setIsLoggedIn(true);
+        setIsOnboarded(true);
+      }
+    };
+
+    fetchUserType();
+  }, []);
 
   const handleOnboardingComplete = (type: UserType) => {
     setUserType(type);
@@ -45,6 +70,7 @@ const Index = () => {
     setUserType(null);
     setIsOnboarded(false);
     setAuthMode("login");
+    localStorage.clear()
   };
 
   if (!isOnboarded) {
@@ -123,7 +149,7 @@ const Index = () => {
       </header>
 
       <main className="max-w-6xl mx-auto p-6">
-        {userType === "patient" ? <PatientDashboard /> : <CaretakerDashboard />}
+        {userType === "patient" ? <PatientDashboard /> : <Dashboard />}
       </main>
     </div>
   );

@@ -30,7 +30,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const login = async (email: string, password: string) => {
-        console.log("line 34", password)
         try {
             const { error, data } = await supabase.auth.signInWithPassword({ email, password });
             if (!error && data?.session) {
@@ -56,8 +55,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const { error, data } = await supabase.auth.signUp({ email: trimmedEmail, password: trimmedPassword });
         const user = data.user ?? data.session?.user ?? null;
         if (!error && user) {
-            setUser(user);
-            return { error: null, user };
+            // After signup, sign in the user to create session
+            const { error: signInError, data: signInData } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: trimmedPassword });
+            if (!signInError && signInData?.session) {
+                setUser(signInData.session.user);
+                return { error: null, user: signInData.session.user };
+            } else {
+                console.error("Sign in after signup error:", signInError);
+                return { error: signInError };
+            }
         }
         if (error) {
             console.error("Signup error:", error);
