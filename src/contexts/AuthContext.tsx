@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import type { User } from '@supabase/supabase-js';
+import { toast } from "@/hooks/use-toast";
 
 interface AuthContextType {
     user: User | null;
@@ -85,6 +86,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = async () => {
         await supabase.auth.signOut();
         setUser(null);
+        toast({
+            title: "Successfully logged out",
+        });
     };
 
     return (

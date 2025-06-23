@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
             .eq("user_type", "patient");
 
         if (error) {
-            console.error("Error fetching patients:", error);
+            console.error("fetching patients:", error);
         } else {
             setPatients(data as Patient[]);
         }
@@ -41,7 +41,6 @@ const Dashboard: React.FC = () => {
     const handleAddPatient = async () => {
         const caretaker = JSON.parse(localStorage.getItem("caretakerDetails"))
         const { email, username, password } = newPatient;
-        // Create patient auth account
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
             password,

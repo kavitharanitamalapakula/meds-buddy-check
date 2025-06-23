@@ -27,11 +27,6 @@ const Index = () => {
         error,
       } = await supabase.auth.getUser();
 
-      // if (error) {
-      //   console.error("Error fetching user:", error.message);
-      //   return;
-      // }
-
       if (user && user.user_metadata && user.user_metadata.user_type) {
         setUserType(user.user_metadata.user_type);
         setIsLoggedIn(true);

@@ -20,7 +20,17 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [patientData, setPatientData] = useState([])
-  const careTakerDetails = JSON.parse(localStorage.getItem("caretakerDetails")) || {}
+  const [loadingMedications, setLoadingMedications] = useState(false);
+  const [medicationName, setMedicationName] = useState("");
+  const [medicationDosage, setMedicationDosage] = useState("");
+  const [medicationFrequency, setMedicationFrequency] = useState("");
+  const [medicationStartDate, setMedicationStartDate] = useState("");
+  const [medicationEndDate, setMedicationEndDate] = useState("");
+  const [medicationTime, setMedicationTime] = useState("")
+  const [addingMedication, setAddingMedication] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editingMedicationId, setEditingMedicationId] = useState<number | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [medications, setMedications] = useState<{
     id: number;
     patient_id: string;
@@ -36,21 +46,6 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     created_at: string;
   }[]>([]);
 
-  const [loadingMedications, setLoadingMedications] = useState(false);
-  const [medicationName, setMedicationName] = useState("");
-  const [medicationDosage, setMedicationDosage] = useState("");
-  const [medicationFrequency, setMedicationFrequency] = useState("");
-  const [medicationStartDate, setMedicationStartDate] = useState("");
-  const [medicationEndDate, setMedicationEndDate] = useState("");
-  const [medicationTime, setMedicationTime] = useState("")
-  const [addingMedication, setAddingMedication] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editingMedicationId, setEditingMedicationId] = useState<number | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-
-  // console.log("patient", patientId)
-  // console.log("caretaker ", careTakerDetails)
-
   const patientMedicationList = async () => {
     try {
       let { data: medications, error } = await supabase
@@ -58,7 +53,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
         .select("*")
         .eq('patient_id', patientId);
       if (error) {
-        console.error("Error fetching medications:", error);
+        console.error("fetching medications:", error);
         setPatientData([]);
         return;
       }
@@ -69,7 +64,6 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
       })) || [];
       setPatientData(medsWithTakenDateArray);
     } catch (err) {
-      console.error("Exception fetching medications:", err);
       setPatientData([]);
     }
   }
@@ -84,29 +78,91 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     const handleMedicationTaken = (event: CustomEvent) => {
       patientMedicationList();
     };
-
     window.addEventListener('medicationTaken', handleMedicationTaken as EventListener);
-
     return () => {
       window.removeEventListener('medicationTaken', handleMedicationTaken as EventListener);
     };
   }, []);
 
-  // Mock data for demonstration
-  const adherenceRate = 85;
-  const currentStreak = 5;
-  const missedDoses = 3;
+  // Helper function to get all dates in current month
+  const getDatesInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const dates = [];
+    while (date.getMonth() === month) {
+      dates.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return dates;
+  };
 
-  // Convert dates into a set for calendar
+  // Get current year and month
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  const datesInCurrentMonth = getDatesInMonth(currentYear, currentMonth).map(d =>
+    d.toISOString().slice(0, 10)
+  );
+  const medsInCurrentMonth = patientData.filter(med => {
+    return med.taken_date.some(dateStr => datesInCurrentMonth.includes(dateStr));
+  });
+  const activeMedsInMonth = patientData.filter(med => {
+    const start = med.start_date ? new Date(med.start_date) : null;
+    const end = med.end_date ? new Date(med.end_date) : null;
+    return (
+      (!start || start <= now) &&
+      (!end || end >= now)
+    );
+  });
+
+  const totalDosesExpected = activeMedsInMonth.length * datesInCurrentMonth.length;
+  let takenDosesCount = 0;
+  patientData.forEach(med => {
+    med.taken_date.forEach(dateStr => {
+      if (datesInCurrentMonth.includes(dateStr)) {
+        takenDosesCount++;
+      }
+    });
+  });
+
+  // Calculate adherence rate as percentage
+  const adherenceRate = totalDosesExpected > 0 ? Math.round((takenDosesCount / totalDosesExpected) * 100) : 0;
+  const todayStr = now.toISOString().slice(0, 10);
+  const pastDatesInCurrentMonth = datesInCurrentMonth.filter(dateStr => dateStr <= todayStr);
+  const totalDosesExpectedPast = activeMedsInMonth.length * pastDatesInCurrentMonth.length;
+  let takenDosesCountPast = 0;
+  patientData.forEach(med => {
+    med.taken_date.forEach(dateStr => {
+      if (pastDatesInCurrentMonth.includes(dateStr)) {
+        takenDosesCountPast++;
+      }
+    });
+  });
+
+  const missedDoses = totalDosesExpectedPast > 0 ? totalDosesExpectedPast - takenDosesCountPast : 0;
+  let currentStreak = 0;
+  for (let i = datesInCurrentMonth.length - 1; i >= 0; i--) {
+    const dateStr = datesInCurrentMonth[i];
+    if (dateStr > now.toISOString().slice(0, 10)) {
+      continue;
+    }
+    // Checking medication taken on this date
+    const takenOnDate = patientData.some(med => med.taken_date.includes(dateStr));
+    if (takenOnDate) {
+      currentStreak++;
+    } else {
+      break;
+    }
+  }
+
   const takenDates = useMemo(() => {
-    // Flatten all taken_date arrays into a single array of date strings
     const allTakenDates = patientData
       .filter((med) => med.taken && med.taken_date)
       .flatMap((med) => med.taken_date || []);
     return new Set(allTakenDates);
   }, [patientData]);
 
-  // Get today's medication info
+  // today's medication info
   const today = format(new Date(), 'yyyy-MM-dd');
   const dailyMedication = useMemo(() => {
     const todayMeds = patientData.filter(

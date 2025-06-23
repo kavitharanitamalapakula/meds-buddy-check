@@ -6,6 +6,7 @@ import { Check, Image, Camera, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 interface MedicationTrackerProps {
   date: string;
@@ -76,7 +77,9 @@ const MedicationTracker = ({
     if (!isToday) return;
 
     if (!user) {
-      alert("You must be logged in to upload images.");
+      toast({
+        title: "You must be logged in to upload images.",
+      });
       return;
     }
 
@@ -94,7 +97,9 @@ const MedicationTracker = ({
 
         if (uploadError) {
           console.error('Error uploading image:', uploadError.message);
-          alert('Failed to upload image. Please try again.');
+          toast({
+            title: "Failed to upload image. Please try again.",
+          });
           return;
         }
 
@@ -106,15 +111,17 @@ const MedicationTracker = ({
         imageUrl = data.publicUrl;
         console.log('Image URL:', imageUrl);
       }
-
-      // Notify parent with date and image file
       onMarkTaken(date, selectedImage || undefined);
       setSelectedImage(null);
       setImagePreview(null);
-      alert('Medication marked as taken and image uploaded successfully.');
+      toast({
+        title: "Medication marked as taken and image uploaded successfully.",
+      });
     } catch (error) {
       console.error('Unexpected error:', error);
-      alert('An unexpected error occurred. Please try again.');
+      toast({
+        title: "An unexpected error occurred. Please try again.",
+      });
     }
   };
   if (isTaken) {

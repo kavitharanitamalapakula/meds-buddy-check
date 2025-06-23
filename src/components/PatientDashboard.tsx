@@ -7,6 +7,7 @@ import MedicationTracker from "./MedicationTracker";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "@/hooks/use-toast";
 
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -71,6 +72,7 @@ const PatientDashboard = () => {
       setUsername(data?.username ?? null);
     }
   };
+
   useEffect(() => {
     fetchUserProfile();
     fetchTakenDates();
@@ -79,7 +81,9 @@ const PatientDashboard = () => {
 
   const handleMarkTaken = async (date: string, imageFile?: File) => {
     if (!user) {
-      alert("You must be logged in to mark medication as taken.");
+      toast({
+        title: "You must be logged in to mark medication as taken.",
+      });
       return;
     }
 
@@ -97,7 +101,9 @@ const PatientDashboard = () => {
 
       if (uploadError) {
         console.error('Error uploading image:', uploadError.message);
-        alert('Failed to upload image. Please try again.');
+        toast({
+          title: "Failed to upload image. Please try again.",
+        });
         return;
       }
 
@@ -119,7 +125,9 @@ const PatientDashboard = () => {
 
       if (fetchError || !meds || meds.length === 0) {
         console.error('Error fetching medication:', fetchError?.message);
-        alert('No medication found for this date.');
+        toast({
+          title: "No medication found for this date.",
+        });
         return;
       }
       const updates = meds.map(async (med) => {
@@ -140,10 +148,14 @@ const PatientDashboard = () => {
       await Promise.all(updates);
       setTakenDates(prev => new Set(prev).add(date));
       window.dispatchEvent(new CustomEvent('medicationTaken', { detail: { date } }));
-      alert('Medication marked as taken and image uploaded successfully.');
+      toast({
+        title: "Medication marked as taken and image uploaded successfully.",
+      });
     } catch (error) {
       console.error('Unexpected error:', error);
-      alert('An unexpected error occurred. Please try again.');
+      toast({
+        title: "An unexpected error occurred. Please try again.",
+      });
     }
   };
 

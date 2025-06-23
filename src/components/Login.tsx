@@ -2,6 +2,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useState } from 'react';
 import useAuthFormModel from "../hooks/useAuthFormModel";
 import { supabase } from '@/lib/supabaseClient';
+import { toast } from "@/hooks/use-toast";
 
 const Login = ({ userType, onClose, onLogin }: { userType: string; onClose: () => void; onLogin: (userType: string) => void }) => {
     const {
@@ -39,6 +40,9 @@ const Login = ({ userType, onClose, onLogin }: { userType: string; onClose: () =
             user.user_type === "caretaker" ? localStorage.setItem("caretakerDetails", JSON.stringify(user)) : localStorage.setItem("patientDetails", JSON.stringify(user))
             onLogin(user.user_type);
             onClose();
+            toast({
+                title: "Successfully signed in",
+            });
         }
     };
     return (
