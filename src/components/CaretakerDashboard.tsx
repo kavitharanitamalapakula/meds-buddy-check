@@ -25,7 +25,6 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
   const currentStreak = 5;
   const missedDoses = 3;
 
-  // Mock data for taken medications (same as in PatientDashboard)
   const takenDates = new Set([
     "2024-06-10", "2024-06-09", "2024-06-07", "2024-06-06",
     "2024-06-05", "2024-06-04", "2024-06-02", "2024-06-01"
@@ -53,6 +52,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     frequency: string;
     start_date: string | null;
     end_date: string | null;
+    time: string | null;
     created_at: string;
   }[]>([]);
   const [loadingMedications, setLoadingMedications] = useState(false);
@@ -61,10 +61,9 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
   const [medicationFrequency, setMedicationFrequency] = useState("");
   const [medicationStartDate, setMedicationStartDate] = useState("");
   const [medicationEndDate, setMedicationEndDate] = useState("");
+  const [medicationTime, setMedicationTime] = useState("")
   const [addingMedication, setAddingMedication] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // New state variables for editing
   const [editingMedicationId, setEditingMedicationId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -93,7 +92,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
   };
 
   const handleAddMedication = async () => {
-    if (!medicationName || !medicationDosage || !medicationFrequency || !medicationStartDate || !medicationEndDate) {
+    if (!medicationName || !medicationDosage || !medicationFrequency || !medicationStartDate || !medicationEndDate || !medicationTime) {
       setError("Please fill in all medication fields.");
       return;
     }
@@ -110,6 +109,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
             frequency: medicationFrequency,
             start_date: medicationStartDate,
             end_date: medicationEndDate,
+            time: medicationTime,
           },
         ])
         .select()
@@ -121,6 +121,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
       setMedicationFrequency("");
       setMedicationStartDate("");
       setMedicationEndDate("");
+      setMedicationTime("");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -141,7 +142,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     setActiveTab("calendar");
   };
 
-  // New handler for edit button click
+  //  edit button
   const handleEditClick = (med: {
     id: number;
     medication_name: string;
@@ -149,6 +150,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     frequency: string;
     start_date: string | null;
     end_date: string | null;
+    time?: string | null;
   }) => {
     setEditingMedicationId(med.id);
     setMedicationName(med.medication_name);
@@ -156,11 +158,12 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     setMedicationFrequency(med.frequency);
     setMedicationStartDate(med.start_date || "");
     setMedicationEndDate(med.end_date || "");
+    setMedicationTime(med.time || "");
     setIsEditing(true);
     setError(null);
   };
 
-  // New handler for canceling edit
+  // canceling edit
   const handleCancelEdit = () => {
     setEditingMedicationId(null);
     setMedicationName("");
@@ -168,13 +171,14 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     setMedicationFrequency("");
     setMedicationStartDate("");
     setMedicationEndDate("");
+    setMedicationTime("");
     setIsEditing(false);
     setError(null);
   };
 
-  // New handler for updating medication
+  // updating medication
   const handleUpdateMedication = async () => {
-    if (!medicationName || !medicationDosage || !medicationFrequency || !medicationStartDate || !medicationEndDate) {
+    if (!medicationName || !medicationDosage || !medicationFrequency || !medicationStartDate || !medicationEndDate || !medicationTime) {
       setError("Please fill in all medication fields.");
       return;
     }
@@ -189,6 +193,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
           frequency: medicationFrequency,
           start_date: medicationStartDate,
           end_date: medicationEndDate,
+          time: medicationTime,
         })
         .eq("id", editingMedicationId)
         .select()
@@ -205,7 +210,7 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     }
   };
 
-  // New handler for deleting medication
+  // deleting medication
   const handleDeleteClick = async (id: number) => {
     if (!confirm("Are you sure you want to delete this medication?")) {
       return;
@@ -470,6 +475,19 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
                     required
                   />
                 </div>
+                <div>
+                  <label htmlFor="medicationTime" className="block font-medium mb-1">
+                    Time
+                  </label>
+                  <input
+                    id="medicationTime"
+                    type="time"
+                    value={medicationTime}
+                    onChange={(e) => setMedicationTime(e.target.value)}
+                    className="w-full rounded border border-gray-300 px-3 py-2"
+                    required
+                  />
+                </div>
                 <div className="flex space-x-2">
                   <Button type="submit" disabled={addingMedication} className="flex-1">
                     {addingMedication ? (isEditing ? "Updating..." : "Adding...") : (isEditing ? "Update Medication" : "Add Medication")}
@@ -495,7 +513,14 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
                         <div>Dosage: {med.dosage}</div>
                         <div>Frequency: {med.frequency}</div>
                         <div>Start Date: {med.start_date}</div>
-                        <div>End Date: {med.end_date}</div>
+                        <div>End Date: {med.end_date ? format(new Date(med.end_date), "MMM d, yyyy") : "N/A"}</div>
+                        <div>Time: {med.time ? (() => {
+                          try {
+                            return format(new Date(`1970-01-01T${med.time}`), "h:mm a");
+                          } catch {
+                            return med.time;
+                          }
+                        })() : "N/A"}</div>
                         <div className="space-x-2 mt-2">
                           <Button size="sm" variant="outline" onClick={() => handleEditClick(med)}>
                             Edit
