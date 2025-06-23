@@ -1,8 +1,8 @@
 import { useAuth } from '../contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useAuthFormModel from "../hooks/useAuthFormModel";
 import { supabase } from '@/lib/supabaseClient';
-
+import Loader from './Loader';
 const Signup = ({
     userType,
     onClose,
@@ -25,11 +25,47 @@ const Signup = ({
     const { signup } = useAuth();
     const [error, setError] = useState<string | null>(null);
     const [validationError, setValidationError] = useState<string | null>(null);
+    const [isFormValid, setIsFormValid] = useState(false);
 
     const validateEmail = (email: string) => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         return emailRegex.test(email);
     };
+    const getPasswordValidationError = (password: string) => {
+        if (password.length < 8) {
+            return "Password must be at least 8 characters long.";
+        }
+        if (!/[A-Z]/.test(password)) {
+            return "Password must contain at least one uppercase letter.";
+        }
+        if (!/[a-z]/.test(password)) {
+            return "Password must contain at least one lowercase letter.";
+        }
+        if (!/\d/.test(password)) {
+            return "Password must contain at least one digit.";
+        }
+        if (!/[!@#$%^&*(),.?\":{}|<>]/.test(password)) {
+            return "Password must contain at least one special character.";
+        }
+        return null;
+    };
+
+    useEffect(() => {
+        // Validate form on email or password
+        if (!validateEmail(email)) {
+            setValidationError("Enter Details");
+            setIsFormValid(false);
+            return;
+        }
+        const pwdError = getPasswordValidationError(password);
+        if (pwdError) {
+            setValidationError(pwdError);
+            setIsFormValid(false);
+            return;
+        }
+        setValidationError(null);
+        setIsFormValid(true);
+    }, [email, password]);
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,8 +77,9 @@ const Signup = ({
             return;
         }
 
-        if (password.length < 6) {
-            setValidationError("Password must be at least 6 characters long.");
+        const pwdError = getPasswordValidationError(password);
+        if (pwdError) {
+            setValidationError(pwdError);
             return;
         }
 
@@ -124,7 +161,8 @@ const Signup = ({
             {error && <p className="text-red-600">{error}</p>}
             <button
                 type="submit"
-                className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
+                className={`w-full py-2 rounded text-white ${isFormValid ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                disabled={!isFormValid}
             >
                 Signup
             </button>
