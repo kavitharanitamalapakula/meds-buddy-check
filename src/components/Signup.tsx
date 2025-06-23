@@ -2,7 +2,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useState } from 'react';
 import useAuthFormModel from "../hooks/useAuthFormModel";
 import { supabase } from '@/lib/supabaseClient';
-import { toast } from "@/hooks/use-toast";
 
 const Signup = ({
     userType,
@@ -84,9 +83,6 @@ const Signup = ({
 
                     onSignup(data[0].user_type);
                     onClose();
-                    toast({
-                        title: "Successfully signed up",
-                    });
                 }
             }
         } catch (err) {
@@ -98,7 +94,7 @@ const Signup = ({
     return (
         <form onSubmit={handleSignup} className="space-y-4">
             <h2 className="text-2xl font-semibold text-center">
-                {selectedUserType === "patient" ? "Patient Signup" : "Caretaker Signup"}
+                Sign up
             </h2>
             <input
                 type="text"

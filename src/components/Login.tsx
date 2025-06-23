@@ -47,7 +47,7 @@ const Login = ({ userType, onClose, onLogin }: { userType: string; onClose: () =
     };
     return (
         <form onSubmit={handleLogin} className="space-y-4">
-            <h2 className="text-2xl font-semibold text-center">{selectedUserType === "patient" ? "Patient Signin" : "Caretaker Signin"}</h2>
+            <h2 className="text-2xl font-semibold text-center">Sign in</h2>
             <input
                 type="email"
                 placeholder="Email"
