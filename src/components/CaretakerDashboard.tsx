@@ -99,11 +99,11 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
 
   // Convert dates into a set for calendar
   const takenDates = useMemo(() => {
-    return new Set(
-      patientData
-        .filter((med) => med.taken && med.taken_date)
-        .map((med) => med.taken_date)
-    );
+    // Flatten all taken_date arrays into a single array of date strings
+    const allTakenDates = patientData
+      .filter((med) => med.taken && med.taken_date)
+      .flatMap((med) => med.taken_date || []);
+    return new Set(allTakenDates);
   }, [patientData]);
 
   // Get today's medication info

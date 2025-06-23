@@ -53,7 +53,7 @@ const Onboarding = ({ onComplete }: OnboardingProps) => {
                   Large, easy-to-use interface
                 </li>
               </ul>
-              <Button 
+              <Button
                 className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
                 onClick={() => onComplete("patient")}
               >
@@ -91,7 +91,7 @@ const Onboarding = ({ onComplete }: OnboardingProps) => {
                   Receive email alerts
                 </li>
               </ul>
-              <Button 
+              <Button
                 className="w-full mt-6 bg-green-600 hover:bg-green-700 text-white py-3 text-lg"
                 onClick={() => onComplete("caretaker")}
               >
