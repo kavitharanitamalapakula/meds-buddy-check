@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
 import { Check, Calendar as CalendarIcon, Image, User } from "lucide-react";
 import MedicationTracker from "./MedicationTracker";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
@@ -14,41 +13,137 @@ const PatientDashboard = () => {
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
   const [username, setUsername] = useState<string | null>(null);
   const { user } = useAuth();
-
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) {
-        setUsername(null);
-        return;
-      }
-      const { data, error } = await supabase
-        .from('UsersData')
-        .select('username')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error("Error fetching user profile:", error);
-        setUsername(null);
-      } else {
-        setUsername(data?.username ?? null);
-      }
-    };
-
-    fetchUserProfile();
-  }, [user]);
-
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isTodaySelected = isToday(selectedDate);
   const isSelectedDateTaken = takenDates.has(selectedDateStr);
 
-  const handleMarkTaken = (date: string, imageFile?: File) => {
-    setTakenDates(prev => new Set(prev).add(date));
-    console.log('Medication marked as taken for:', date);
+  // Fetch taken dates for the user
+  const fetchTakenDates = async () => {
+    if (!user) {
+      setTakenDates(new Set());
+      return;
+    }
+    try {
+      const { data: meds, error } = await supabase
+        .from('medications')
+        .select('taken_date')
+        .eq('patient_id', user.id)
+        .is('taken', true);
+
+      if (error) {
+        console.error('Error fetching taken dates:', error);
+        setTakenDates(new Set());
+        return;
+      }
+
+      const datesSet = new Set<string>();
+      meds?.forEach(med => {
+        if (Array.isArray(med.taken_date)) {
+          med.taken_date.forEach((date: string) => datesSet.add(date));
+        } else if (typeof med.taken_date === 'string') {
+          datesSet.add(med.taken_date);
+        }
+      });
+
+      setTakenDates(datesSet);
+    } catch (error) {
+      console.error('Unexpected error fetching taken dates:', error);
+      setTakenDates(new Set());
+    }
+  };
+  const fetchUserProfile = async () => {
+    if (!user) {
+      setUsername(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('UsersData')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching user profile:", error);
+      setUsername(null);
+    } else {
+      setUsername(data?.username ?? null);
+    }
+  };
+  useEffect(() => {
+    fetchUserProfile();
+    fetchTakenDates();
+  }, [user]);
+
+
+  const handleMarkTaken = async (date: string, imageFile?: File) => {
+    if (!user) {
+      alert("You must be logged in to mark medication as taken.");
+      return;
+    }
+
+    let imageUrl: string | null = null;
+
+    // Upload image to Supabase Storage 
     if (imageFile) {
-      console.log('Proof image uploaded:', imageFile.name);
+      const fileExt = imageFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `medication-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('medication-images')
+        .upload(filePath, imageFile);
+
+      if (uploadError) {
+        console.error('Error uploading image:', uploadError.message);
+        alert('Failed to upload image. Please try again.');
+        return;
+      }
+
+      const { data } = supabase.storage
+        .from('medication-images')
+        .getPublicUrl(filePath);
+
+      imageUrl = data.publicUrl;
+      console.log('Image URL:', imageUrl);
+    }
+
+    try {
+      const { data: meds, error: fetchError } = await supabase
+        .from('medications')
+        .select('id, taken_date')
+        .eq('patient_id', user.id)
+        .lte('start_date', date)
+        .or(`end_date.gte.${date},end_date.is.null`);
+
+      if (fetchError || !meds || meds.length === 0) {
+        console.error('Error fetching medication:', fetchError?.message);
+        alert('No medication found for this date.');
+        return;
+      }
+      const updates = meds.map(async (med) => {
+        const updatedTakenDates = Array.isArray(med.taken_date)
+          ? [...new Set([...med.taken_date, date])]
+          : [date];
+
+        return supabase
+          .from('medications')
+          .update({
+            taken: true,
+            image_url: imageUrl,
+            taken_date: updatedTakenDates,
+          })
+          .eq('id', med.id);
+      });
+
+      await Promise.all(updates);
+      setTakenDates(prev => new Set(prev).add(date));
+      window.dispatchEvent(new CustomEvent('medicationTaken', { detail: { date } }));
+      alert('Medication marked as taken and image uploaded successfully.');
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      alert('An unexpected error occurred. Please try again.');
     }
   };
 
@@ -62,27 +157,6 @@ const PatientDashboard = () => {
     }
 
     return streak;
-  };
-
-  const getDayClassName = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const isPast = isBefore(date, startOfDay(today));
-    const isCurrentDay = isToday(date);
-    const isTaken = takenDates.has(dateStr);
-
-    let className = "";
-
-    if (isCurrentDay) {
-      className += " bg-blue-100 border-blue-300 ";
-    }
-
-    if (isTaken) {
-      className += " bg-green-100 text-green-800 ";
-    } else if (isPast) {
-      className += " bg-red-50 text-red-600 ";
-    }
-
-    return className;
   };
 
   return (
@@ -133,6 +207,7 @@ const PatientDashboard = () => {
                 isTaken={isSelectedDateTaken}
                 onMarkTaken={handleMarkTaken}
                 isToday={isTodaySelected}
+                patientId={user?.id}
               />
             </CardContent>
           </Card>

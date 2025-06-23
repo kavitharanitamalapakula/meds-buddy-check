@@ -36,6 +36,7 @@ const Login = ({ userType, onClose, onLogin }: { userType: string; onClose: () =
         } else {
             let { data, error } = await supabase.from('UsersData').select("*").eq('email', email)
             const user = data[0]
+            user.user_type === "caretaker" ? localStorage.setItem("caretakerDetails", JSON.stringify(user)) : localStorage.setItem("patientDetails", JSON.stringify(user))
             onLogin(user.user_type);
             onClose();
         }

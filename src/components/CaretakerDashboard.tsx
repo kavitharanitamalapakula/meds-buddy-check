@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,31 +19,8 @@ interface CaretakerDashboardProps {
 const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, patientName, onBack }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-
-  // Mock data for demonstration
-  const adherenceRate = 85;
-  const currentStreak = 5;
-  const missedDoses = 3;
-
-  const takenDates = new Set([
-    "2024-06-10", "2024-06-09", "2024-06-07", "2024-06-06",
-    "2024-06-05", "2024-06-04", "2024-06-02", "2024-06-01"
-  ]);
-
-  const recentActivity = [
-    { date: "2024-06-10", taken: true, time: "8:30 AM", hasPhoto: true },
-    { date: "2024-06-09", taken: true, time: "8:15 AM", hasPhoto: false },
-    { date: "2024-06-08", taken: false, time: null, hasPhoto: false },
-    { date: "2024-06-07", taken: true, time: "8:45 AM", hasPhoto: true },
-    { date: "2024-06-06", taken: true, time: "8:20 AM", hasPhoto: false },
-  ];
-
-  const dailyMedication = {
-    name: "Daily Medication Set",
-    time: "8:00 AM",
-    status: takenDates.has(format(new Date(), 'yyyy-MM-dd')) ? "completed" : "pending"
-  };
-
+  const [patientData, setPatientData] = useState([])
+  const careTakerDetails = JSON.parse(localStorage.getItem("caretakerDetails")) || {}
   const [medications, setMedications] = useState<{
     id: number;
     patient_id: string;
@@ -53,8 +30,12 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
     start_date: string | null;
     end_date: string | null;
     time: string | null;
+    taken: string | false;
+    taken_date: (string | null)[];
+    image_url: string | null;
     created_at: string;
   }[]>([]);
+
   const [loadingMedications, setLoadingMedications] = useState(false);
   const [medicationName, setMedicationName] = useState("");
   const [medicationDosage, setMedicationDosage] = useState("");
@@ -66,6 +47,105 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
   const [error, setError] = useState<string | null>(null);
   const [editingMedicationId, setEditingMedicationId] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  // console.log("patient", patientId)
+  // console.log("caretaker ", careTakerDetails)
+
+  const patientMedicationList = async () => {
+    try {
+      let { data: medications, error } = await supabase
+        .from('medications')
+        .select("*")
+        .eq('patient_id', patientId);
+      if (error) {
+        console.error("Error fetching medications:", error);
+        setPatientData([]);
+        return;
+      }
+      // Ensure taken_date is always an array
+      const medsWithTakenDateArray = medications?.map((med) => ({
+        ...med,
+        taken_date: Array.isArray(med.taken_date) ? med.taken_date : med.taken_date ? [med.taken_date] : [],
+      })) || [];
+      setPatientData(medsWithTakenDateArray);
+    } catch (err) {
+      console.error("Exception fetching medications:", err);
+      setPatientData([]);
+    }
+  }
+
+  useEffect(
+    () => {
+      patientMedicationList()
+    }, [patientId]
+  )
+
+  useEffect(() => {
+    const handleMedicationTaken = (event: CustomEvent) => {
+      patientMedicationList();
+    };
+
+    window.addEventListener('medicationTaken', handleMedicationTaken as EventListener);
+
+    return () => {
+      window.removeEventListener('medicationTaken', handleMedicationTaken as EventListener);
+    };
+  }, []);
+
+  // Mock data for demonstration
+  const adherenceRate = 85;
+  const currentStreak = 5;
+  const missedDoses = 3;
+
+  // Convert dates into a set for calendar
+  const takenDates = useMemo(() => {
+    return new Set(
+      patientData
+        .filter((med) => med.taken && med.taken_date)
+        .map((med) => med.taken_date)
+    );
+  }, [patientData]);
+
+  // Get today's medication info
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const dailyMedication = useMemo(() => {
+    const todayMeds = patientData.filter(
+      (med) =>
+        med.start_date <= today &&
+        med.end_date >= today
+    );
+
+    return {
+      name: "Daily Medication Set",
+      time: todayMeds[0]?.time ?? "08:00 AM",
+      status: takenDates.has(today) ? "completed" : "pending"
+    };
+  }, [patientData, takenDates]);
+
+  // Create recent activity from last few days
+  const recentActivity = useMemo(() => {
+    if (!patientData || patientData.length === 0) return [];
+    return patientData
+      .filter((med) => Array.isArray(med.taken_date) && med.taken_date.length > 0)
+      .sort((a, b) => {
+        const aLatest = new Date(a.taken_date![a.taken_date!.length - 1] || 0);
+        const bLatest = new Date(b.taken_date![b.taken_date!.length - 1] || 0);
+        return bLatest.getTime() - aLatest.getTime();
+      })
+      .slice(0, 5)
+      .map((med) => {
+        const latestDate = med.taken_date![med.taken_date!.length - 1];
+
+        return {
+          date: latestDate,
+          taken: med.taken,
+          time: med.time
+            ? format(new Date(`1970-01-01T${med.time}`), 'h:mm a')
+            : null,
+          hasPhoto: !!med.image_url,
+        };
+      });
+  }, [patientData]);
 
   useEffect(() => {
     if (activeTab === "medications") {
@@ -360,40 +440,115 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
         <TabsContent value="calendar" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Calendar View</CardTitle>
+              <CardTitle>Medication Calendar Overview</CardTitle>
             </CardHeader>
             <CardContent>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => isBefore(date, startOfDay(subDays(new Date(), 30)))}
-                modifiers={{
-                  taken: Array.from(takenDates).map(dateStr => new Date(dateStr)),
-                  medication: medications.flatMap(med => {
-                    if (!med.start_date || !med.end_date) return [];
-                    const start = new Date(med.start_date);
-                    const end = new Date(med.end_date);
-                    const dates = [];
-                    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                      dates.push(new Date(d));
-                    }
-                    return dates;
-                  }),
-                }}
-                modifiersClassNames={{
-                  taken: "bg-green-500 text-white rounded-full",
-                  medication: "bg-blue-300 text-white rounded-full",
-                }}
-              />
+              <div className="grid lg:grid-cols-2 gap-6">
+                <div>
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    className="w-full"
+                    modifiersClassNames={{
+                      selected: "bg-blue-600 text-white hover:bg-blue-700",
+                    }}
+                    components={{
+                      DayContent: ({ date }) => {
+                        const dateStr = format(date, 'yyyy-MM-dd');
+                        const isTaken = takenDates.has(dateStr);
+                        const isPast = isBefore(date, startOfDay(new Date()));
+                        const isCurrentDay = isToday(date);
+
+                        return (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            <span>{date.getDate()}</span>
+                            {isTaken && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                <Check className="w-2 h-2 text-white" />
+                              </div>
+                            )}
+                            {!isTaken && isPast && !isCurrentDay && (
+                              <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full"></div>
+                            )}
+                          </div>
+                        );
+                      }
+                    }}
+                  />
+
+                  <div className="mt-4 space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span>Medication taken</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                      <span>Missed medication</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span>Today</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-4">
+                    Details for {format(selectedDate, 'MMMM d, yyyy')}
+                  </h4>
+
+                  <div className="space-y-4">
+                    {takenDates.has(format(selectedDate, 'yyyy-MM-dd')) ? (
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Check className="w-5 h-5 text-green-600" />
+                          <span className="font-medium text-green-800">Medication Taken</span>
+                        </div>
+                        <p className="text-sm text-green-700">
+                          {patientName} successfully took their medication on this day.
+                        </p>
+                      </div>
+                    ) : isBefore(selectedDate, startOfDay(new Date())) ? (
+                      <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-5 h-5 text-red-600" />
+                          <span className="font-medium text-red-800">Medication Missed</span>
+                        </div>
+                        <p className="text-sm text-red-700">
+                          {patientName} did not take their medication on this day.
+                        </p>
+                      </div>
+                    ) : isToday(selectedDate) ? (
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-5 h-5 text-blue-600" />
+                          <span className="font-medium text-blue-800">Today</span>
+                        </div>
+                        <p className="text-sm text-blue-700">
+                          Monitor {patientName}'s medication status for today.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CalendarIcon className="w-5 h-5 text-gray-600" />
+                          <span className="font-medium text-gray-800">Future Date</span>
+                        </div>
+                        <p className="text-sm text-gray-700">
+                          This date is in the future.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
-
         <TabsContent value="notifications" className="space-y-6">
-          {/* <NotificationSettings patientId={patientId} /> */}
+          <NotificationSettings patientId={patientId} />
         </TabsContent>
-
         <TabsContent value="medications" className="space-y-6">
           <Card>
             <CardHeader>
@@ -538,6 +693,11 @@ const CaretakerDashboard: React.FC<CaretakerDashboardProps> = ({ patientId, pati
           </Card>
         </TabsContent>
       </Tabs>
+      <div className="mt-6 flex justify-center">
+        <Button variant="outline" onClick={onBack}>
+          Back to Dashboard
+        </Button>
+      </div>
     </div>
   );
 };

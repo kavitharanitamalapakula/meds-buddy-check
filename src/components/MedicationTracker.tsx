@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,75 +5,118 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Image, Camera, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface MedicationTrackerProps {
   date: string;
   isTaken: boolean;
   onMarkTaken: (date: string, imageFile?: File) => void;
   isToday: boolean;
+  patientId?: string;
 }
 
-const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTrackerProps) => {
+const MedicationTracker = ({
+  date,
+  isTaken,
+  onMarkTaken,
+  isToday,
+}: MedicationTrackerProps) => {
+  const { user } = useAuth();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const patientDetails = JSON.parse(localStorage.getItem("patientDetails") || "{}");
+  const [patientMedications, setPatientMedications] = useState<
+    {
+      id: number;
+      medication_name: string;
+      dosage: string;
+      frequency: string;
+      start_date: string | null;
+      end_date: string | null;
+      image_url?: string | null;
+    }[]
+  >([]);
 
-  const [patientMedications, setPatientMedications] = useState<{
-    id: number;
-    medication_name: string;
-    dosage: string;
-    frequency: string;
-    start_date: string | null;
-    end_date: string | null;
-  }[]>([]);
+  const fetchMedications = async () => {
+    const { data, error } = await supabase.from("medications").select("*");
+
+    if (error) {
+      console.error("Error fetching medications:", error);
+      return;
+    }
+
+    const filtered = data.filter((med) => med.patient_id === patientDetails.id);
+    setPatientMedications(filtered);
+  };
+
+  useEffect(() => {
+    fetchMedications();
+  }, []);
 
   const dailyMedication = {
     name: "Daily Medication Set",
     time: "8:00 AM",
-    description: "Complete set of daily tablets"
+    description: "Complete set of daily tablets",
   };
-  const fetchPatientMedications = async () => {
-    console.log('Starting fetchPatientMedications');
-    try {
-      const { data, error } = await supabase
-        .from('medications')
-        .select('id, medication_name, dosage, frequency, start_date, end_date');
-      if (error) {
-        console.error('Error fetching patient medications:', error);
-        return;
-      }
-      console.log('Fetched patient medications raw data:', data);
-      if (data) {
-        setPatientMedications(data);
-      }
-    } catch (err) {
-      console.error('Unexpected error fetching patient medications:', err);
-    }
-    console.log('Completed fetchPatientMedications');
-  };
-  useEffect(() => {
-
-    fetchPatientMedications();
-  }, []);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (imagePreview) {
+        URL.revokeObjectURL(imagePreview);
+      }
+      const imageUrl = URL.createObjectURL(file);
       setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      setImagePreview(imageUrl);
     }
   };
 
-  const handleMarkTaken = () => {
-    onMarkTaken(date, selectedImage || undefined);
-    setSelectedImage(null);
-    setImagePreview(null);
+  const handleMarkTaken = async () => {
+    if (!isToday) return;
+
+    if (!user) {
+      alert("You must be logged in to upload images.");
+      return;
+    }
+
+    try {
+      let imageUrl: string | null = null;
+
+      if (selectedImage) {
+        const fileExt = selectedImage.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `medication-images/${fileName}`;
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('medication-images')
+          .upload(filePath, selectedImage);
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError.message);
+          alert('Failed to upload image. Please try again.');
+          return;
+        }
+
+        // Get public URL
+        const { data } = supabase.storage
+          .from('medication-images')
+          .getPublicUrl(filePath);
+
+        imageUrl = data.publicUrl;
+        console.log('Image URL:', imageUrl);
+      }
+
+      // Notify parent with date and image file
+      onMarkTaken(date, selectedImage || undefined);
+      setSelectedImage(null);
+      setImagePreview(null);
+      alert('Medication marked as taken and image uploaded successfully.');
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      alert('An unexpected error occurred. Please try again.');
+    }
   };
-  console.log("line 69", patientMedications)
   if (isTaken) {
     return (
       <div className="space-y-4">
@@ -87,7 +129,7 @@ const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTr
               Medication Completed!
             </h3>
             <p className="text-green-600">
-              Great job! You've taken your medication for {format(new Date(date), 'MMMM d, yyyy')}.
+              Great job! You've taken your medication for {format(new Date(date), "MMMM d, yyyy")}.
             </p>
           </div>
         </div>
@@ -100,28 +142,9 @@ const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTr
               </div>
               <div>
                 <h4 className="font-medium text-green-800">{dailyMedication.name}</h4>
-                {patientMedications.length === 0 ? (
-                  <div>No medications found.</div>
-                ) : (
-                  <ul className="mt-4 space-y-2">
-                    {patientMedications.map((med) => (
-                      <li key={med.id} className="border rounded p-3">
-                        <div className="font-semibold">{med.medication_name}</div>
-                        <div>Dosage: {med.dosage}</div>
-                        <div>Frequency: {med.frequency}</div>
-                        <div>Start Date: {med.start_date}</div>
-                        <div>End Date: {med.end_date}</div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 <p className="text-sm text-green-600">{dailyMedication.description}</p>
               </div>
             </div>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              <Clock className="w-3 h-3 mr-1" />
-              {dailyMedication.time}
-            </Badge>
           </CardContent>
         </Card>
       </div>
@@ -129,22 +152,38 @@ const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTr
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full">
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 font-medium">1</span>
-            </div>
             <div>
               <h4 className="font-medium">{dailyMedication.name}</h4>
               <p className="text-sm text-muted-foreground">{dailyMedication.description}</p>
+
+              {patientMedications.length === 0 ? (
+                <div className="text-center text-muted-foreground">No medications found.</div>
+              ) : (
+                patientMedications.map((med, index) => (
+                  <Card key={med.id} className="hover:shadow-md transition-shadow mt-3">
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 font-medium">{index + 1}</span>
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{med.medication_name}</h4>
+                        </div>
+                      </div>
+                      <Badge variant="outline">
+                        <Clock className="w-3 h-3 mr-1" />
+                        {format(new Date(date), "h:mm a")}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
             </div>
           </div>
-          <Badge variant="outline">
-            <Clock className="w-3 h-3 mr-1" />
-            {dailyMedication.time}
-          </Badge>
         </CardContent>
       </Card>
 

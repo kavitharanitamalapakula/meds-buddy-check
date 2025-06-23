@@ -24,14 +24,11 @@ const Dashboard: React.FC = () => {
     }, []);
 
     const fetchPatients = async () => {
-        const {
-            data: { user: caretaker },
-        } = await supabase.auth.getUser();
-
+        const caretaker = JSON.parse(localStorage.getItem("caretakerDetails"))
         const { data, error } = await supabase
             .from("UsersData")
             .select("*")
-            .eq("Assigned", caretaker?.id)
+            .eq("Assigned", caretaker.id)
             .eq("user_type", "patient");
 
         if (error) {
@@ -42,8 +39,8 @@ const Dashboard: React.FC = () => {
     };
 
     const handleAddPatient = async () => {
+        const caretaker = JSON.parse(localStorage.getItem("caretakerDetails"))
         const { email, username, password } = newPatient;
-
         // Create patient auth account
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
@@ -63,15 +60,6 @@ const Dashboard: React.FC = () => {
         const patientId = authData.user?.id;
         if (!patientId) {
             console.error("Patient ID missing after signup");
-            return;
-        }
-        const {
-            data: { user: caretaker },
-            error: caretakerError
-        } = await supabase.auth.getUser();
-
-        if (caretakerError || !caretaker?.id) {
-            console.error("Caretaker fetch error:", caretakerError?.message);
             return;
         }
         const { error: insertError } = await supabase.from("UsersData").insert([
@@ -124,8 +112,8 @@ const Dashboard: React.FC = () => {
                     <table className="min-w-full text-left">
                         <thead className="bg-purple-100 text-purple-700">
                             <tr>
-                                <th className="py-3 px-6">Email</th>
                                 <th className="py-3 px-6">Username</th>
+                                <th className="py-3 px-6">Email</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -137,9 +125,9 @@ const Dashboard: React.FC = () => {
                                 </tr>
                             ) : (
                                 patients.map((patient) => (
-                                    <tr key={patient.id} className="hover:bg-gray-50 transition" onClick={() => handlePatientClick(patient.id)}>
-                                        <td className="py-3 px-6">{patient.email}</td>
+                                    <tr key={patient.id} className="hover:bg-gray-50 transition cursor-pointer" onClick={() => handlePatientClick(patient.id)}>
                                         <td className="py-3 px-6">{patient.username}</td>
+                                        <td className="py-3 px-6">{patient.email}</td>
                                     </tr>
                                 ))
                             )}
