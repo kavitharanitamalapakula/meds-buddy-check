@@ -74,11 +74,18 @@ const MedicationTracker = ({
   };
 
   const handleMarkTaken = async () => {
-    if (!isToday) return;
+    // Removed restriction to allow marking past dates as taken
 
     if (!user) {
       toast({
         title: "You must be logged in to upload images.",
+      });
+      return;
+    }
+
+    if (!selectedImage) {
+      toast({
+        title: "Please upload an image to mark medication as taken.",
       });
       return;
     }
@@ -241,17 +248,10 @@ const MedicationTracker = ({
       <Button
         onClick={handleMarkTaken}
         className="w-full py-4 text-lg bg-green-600 hover:bg-green-700 text-white"
-        disabled={!isToday}
       >
         <Check className="w-5 h-5 mr-2" />
-        {isToday ? "Mark as Taken" : "Cannot mark future dates"}
+        Mark as Taken
       </Button>
-
-      {!isToday && (
-        <p className="text-center text-sm text-muted-foreground">
-          You can only mark today's medication as taken
-        </p>
-      )}
     </div>
   );
 };
