@@ -13,71 +13,13 @@ const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
   const [username, setUsername] = useState<string | null>(null);
+  const [recentActivities, setRecentActivities] = useState<Array<{ taken_date: string }>>([]);
   const { user } = useAuth();
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isTodaySelected = isToday(selectedDate);
   const isSelectedDateTaken = takenDates.has(selectedDateStr);
-
-  // Fetch taken dates for the user
-  const fetchTakenDates = async () => {
-    if (!user) {
-      setTakenDates(new Set());
-      return;
-    }
-    try {
-      const { data: meds, error } = await supabase
-        .from('medications')
-        .select('taken_date')
-        .eq('patient_id', user.id)
-        .is('taken', true);
-
-      if (error) {
-        console.error('Error fetching taken dates:', error);
-        setTakenDates(new Set());
-        return;
-      }
-
-      const datesSet = new Set<string>();
-      meds?.forEach(med => {
-        if (Array.isArray(med.taken_date)) {
-          med.taken_date.forEach((date: string) => datesSet.add(date));
-        } else if (typeof med.taken_date === 'string') {
-          datesSet.add(med.taken_date);
-        }
-      });
-
-      setTakenDates(datesSet);
-    } catch (error) {
-      console.error('Unexpected error fetching taken dates:', error);
-      setTakenDates(new Set());
-    }
-  };
-  const fetchUserProfile = async () => {
-    if (!user) {
-      setUsername(null);
-      return;
-    }
-    const { data, error } = await supabase
-      .from('UsersData')
-      .select('username')
-      .eq('id', user.id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching user profile:", error);
-      setUsername(null);
-    } else {
-      setUsername(data?.username ?? null);
-    }
-  };
-
-  useEffect(() => {
-    fetchUserProfile();
-    fetchTakenDates();
-  }, [user]);
-
 
   const handleMarkTaken = async (date: string, imageFile?: File) => {
     if (!user) {
